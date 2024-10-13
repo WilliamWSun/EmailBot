@@ -69,7 +69,8 @@ def scrape_website(url):
 
 
 # Set your OpenAI API key
-openai_api_key = os.getenv("OPENAI_API_KEY")
+# openai_api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = st.secrets("OPENAI_API_KEY")
 if not openai_api_key:
     raise Exception("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
 
