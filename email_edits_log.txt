@@ -1,0 +1,20 @@
+--- 
++++ 
+@@ -1,14 +1,12 @@
+-**Subject:** Exploring Synergies: How SpryPoint is Transforming the Utility Sector with Innovative Cloud Solutions
+-
+ Hi [Founder Name],
+ 
+ I hope this message finds you well. Congratulations on SpryPoint's remarkable achievements in revolutionizing the utility industry with your innovative, cloud-based solutions. It's inspiring to see how SpryPoint is setting new standards in operational efficiency and customer service.
+ 
+-The utility sector is undergoing significant transformation, with a growing demand for scalable, secure, and data-driven solutions. As traditional systems struggle to keep pace, SpryPoint stands out by offering a 100% cloud-based architecture that not only enhances security and performance but also ensures seamless access to the latest features and upgrades. This approach addresses a critical pain point for utilities looking to modernize without the burden of extensive hardware investments.
++CHANGE
+ 
+ Your commitment to delivering business intelligence analytics and fostering improved decision-making capabilities positions SpryPoint as a leader amidst rising competition. The testimonials from Easton Utilities, Westfield Gas + Electric, and others highlight the profound impact of your solutions in driving innovation and efficiency across the utility landscape.
+ 
+-At JMI Equity, we have a strong thesis in supporting companies that are at the forefront of digital transformation in essential industries like utilities. With over $8B in assets under management, we've partnered with 180+ B2B software companies over the last 30 years, empowering them to scale and lead their markets.
++CHANGE
+ 
+ I would love the opportunity to learn more about SpryPoint's vision and explore how we might collaborate to accelerate your growth trajectory. Could we arrange a time to discuss this further in the next week or two? Please let me know your availability.
+ 
+
