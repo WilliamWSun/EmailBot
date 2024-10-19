@@ -7,54 +7,43 @@ import streamlit as st
 import time
 import difflib
 import json
-from collections import deque
 
 openai_api_key = os.getenv("OPENAI_API_KEY") 
-# or st.secrets.get("OPENAI_API_KEY")
 if not openai_api_key:
     raise Exception("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
-
 client = OpenAI(api_key=openai_api_key)
 
 
-
 def normalize_url(url):
-    """Normalize URL by removing query parameters, fragments, and trailing slashes."""
     parsed_url = urlparse(url)
     normalized = parsed_url._replace(query="", fragment="").geturl()
-    return normalized.rstrip('/')  # Remove trailing slash
-
+    return normalized.rstrip('/')  
 
 def extract_core_content_no_chunking(soup):
-    """Extract only the relevant text content from important tags without chunking."""
-    important_tags = ['h1', 'h2', 'h3', 'p', 'li']  # Tags that likely contain relevant info
+    important_tags = ['h1', 'h2', 'h3', 'p', 'li'] 
     text_content = []
 
-    # Extract the text from the important tags
     for tag in important_tags:
         for element in soup.find_all(tag):
             text_content.append(element.get_text())
 
     return ' '.join(text_content)
 
-
 def summarize_page(content):
-    # Create a prompt that instructs the model to summarize the content
     prompt = f"Summarize the following content, extracting key points and relevant information while ignoring boilerplate and repetitive content:\n\n{content}"
     
     try:
-        # Use a smaller, cheaper model to summarize
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # Change this to the lightweight model you're using
+            model="gpt-4o-mini",  
             messages=[
                 {"role": "system", "content": "You are a summarization assistant."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=500,  # Set token limit for summarization
+            max_tokens=500,  
             temperature=0.5
         )
         summary = response.choices[0].message.content
-        return summary.strip()  # Clean up whitespace
+        return summary.strip()  
 
     except Exception as e:
         print(f"Error summarizing HTML: {str(e)}")
@@ -87,12 +76,6 @@ def scrape_website_recursive(url, visited, max_depth=20, max_links_per_page=4):
         core_content = extract_core_content_no_chunking(soup)
         summarized_text = summarize_page(core_content)
 
-        # raw_html = response.text  # Get raw HTML
-
-        # # Summarize the HTML content using the new function
-        # summarized_text = summarize_html(raw_html)
-
-
         links_visited = 0
         combined_summary = summarized_text
 
@@ -105,7 +88,6 @@ def scrape_website_recursive(url, visited, max_depth=20, max_links_per_page=4):
             next_url = urljoin(url, link['href'])  
             next_url = normalize_url(next_url) 
 
-            # Ensure the link is internal and not visited
             if urlparse(url).netloc == urlparse(next_url).netloc:
                 if next_url not in visited:
                     if not stop_recursion: 
@@ -114,7 +96,6 @@ def scrape_website_recursive(url, visited, max_depth=20, max_links_per_page=4):
                         time.sleep(0.25) 
                         combined_summary += scrape_website_recursive(next_url, visited, max_depth - 1)
 
-        # print(text)
         return combined_summary
 
     except requests.exceptions.RequestException as e:
@@ -122,7 +103,6 @@ def scrape_website_recursive(url, visited, max_depth=20, max_links_per_page=4):
         return ""
 
 
-# Load previous edits from JSON file
 def load_edits_log():
     try:
         with open("email_edits_log.json", "r") as f:
@@ -130,7 +110,6 @@ def load_edits_log():
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
-# Save edits to JSON log
 def save_edits_log(original, edited, diff):
     edits_log = load_edits_log()
     new_entry = {"original": original, "edited": edited, "diff": diff}
@@ -138,17 +117,14 @@ def save_edits_log(original, edited, diff):
     with open("email_edits_log.json", "w") as f:
         json.dump(edits_log, f, indent=4)
 
-# Analyze past edits to modify prompt dynamically
 def generate_refined_prompt(company_info):
     edits_log = load_edits_log()
     if not edits_log:
         return f"Here is some information about the company: {company_info}"
 
-    # Analyze common changes made by the user
     common_phrases = [entry["diff"] for entry in edits_log if entry["diff"]]
     learning_summary = "\n".join(common_phrases[:10]) 
 
-    # Modify the prompt based on the learning summary
     return f"""
     Here is some information about the company: {company_info}
 
@@ -163,7 +139,7 @@ def generate_refined_prompt(company_info):
     {learning_summary}
 
     Before drafting any new emails, please:
-    1. Analyze the differences between your original drafts and my edits
+    1. Take note of the differences between your original drafts and my edits
     2. Note patterns in:
         Tone adjustments (formal vs casual)
         Common phrases I add or remove
@@ -176,7 +152,6 @@ def generate_refined_prompt(company_info):
     incorporate these preferences
     Maintain the core message while adapting the style to match my demonstrated preferences
     If you're unsure about a particular aspect, default to the style most commonly seen in my edited versions
-
     """
 
 
@@ -209,21 +184,18 @@ def generate_email(company_info):
     """
 
     try:
-        # Use the Chat API instead of the old Completion API
         response = client.chat.completions.create(
-            model="gpt-4o",  # or "gpt-4" if you have access
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a professional email writer."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7
         )
-        # Extract the email content from the response
         return response.choices[0].message.content
 
     except Exception as e:
         return f"Error generating email: {str(e)}"
-
 
 def track_changes(original, edited):
     diff = list(difflib.unified_diff(
@@ -247,71 +219,58 @@ def regenerate_email(first_email, company_info, regeneration_comments):
     """
 
     try:
-        # Use the Chat API instead of the old Completion API
         response = client.chat.completions.create(
-            model="gpt-4o",  # or "gpt-4" if you have access
+            model="gpt-4o",  
             messages=[
                 {"role": "system", "content": "You are a professional email writer."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7
         )
-        # Extract the email content from the response
         return response.choices[0].message.content
 
     except Exception as e:
         return f"Error generating email: {str(e)}"
 
 
+######### GUI ###########
 
-
-# Streamlit UI
 st.title("Automated CEO Email Generator")
 
-# Input field for company URL
 company_url = st.text_input("Enter Company Website URL")
 
-# Initialize session state variables only if they don't exist
 if "original_email" not in st.session_state:
     st.session_state.original_email = ""
 if "comments" not in st.session_state:
     st.session_state.comments = ""
 if "email_generated" not in st.session_state:
-    st.session_state.email_generated = False  # To track whether email was generated
+    st.session_state.email_generated = False 
 if "company_info" not in st.session_state:
-    st.session_state.company_info = ""  # Store company info globally in session state
+    st.session_state.company_info = ""  
 if "visited_set" not in st.session_state:
-    st.session_state.visited_set = set()  # Track visited links for scraping
+    st.session_state.visited_set = set()  
 
-# Button to scrape the website and generate the email
 if st.button("Generate Email"):
     st.write("Processing... please wait.")
 
-    # Only scrape the website if company_info is not already stored
     if not st.session_state.company_info:
         st.session_state.company_info = scrape_website_recursive(company_url, st.session_state.visited_set)
 
-    # Generate the email using the stored company_info
     st.session_state.original_email = generate_email(st.session_state.company_info)
-    st.session_state.email_generated = True  # Mark email as generated
+    st.session_state.email_generated = True  
 
-# Display the generated email in a text area for edits, only if the email was generated
 if st.session_state.email_generated:
     edited_email = st.text_area("Edit the Generated Email", st.session_state.original_email, height=300)
 
-    # Text area to add comments for regenerating the email
     comments_for_changes = st.text_area("Comments to Regenerate", st.session_state.comments, height=100)
 
-    # Button to regenerate the email based on comments
     if st.button("Regenerate"):
         if edited_email and comments_for_changes:
             st.write("Processing... please wait.")
-            # Regenerate email using the existing company_info (no need to scrape again)
             st.session_state.original_email = regenerate_email(edited_email, st.session_state.company_info, comments_for_changes)
         else:
             st.warning("Please provide both comments and edits to regenerate the email.")
 
-    # Button to save edits and log them
     if st.button("Save Edits"):
         if edited_email and st.session_state.original_email:
             diff = track_changes(st.session_state.original_email, edited_email)
