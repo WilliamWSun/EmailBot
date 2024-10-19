@@ -24,8 +24,44 @@ def normalize_url(url):
     normalized = parsed_url._replace(query="", fragment="").geturl()
     return normalized.rstrip('/')  # Remove trailing slash
 
+
+def extract_core_content_no_chunking(soup):
+    """Extract only the relevant text content from important tags without chunking."""
+    important_tags = ['h1', 'h2', 'h3', 'p', 'li']  # Tags that likely contain relevant info
+    text_content = []
+
+    # Extract the text from the important tags
+    for tag in important_tags:
+        for element in soup.find_all(tag):
+            text_content.append(element.get_text())
+
+    return ' '.join(text_content)
+
+
+def summarize_page(content):
+    # Create a prompt that instructs the model to summarize the content
+    prompt = f"Summarize the following content, extracting key points and relevant information while ignoring boilerplate and repetitive content:\n\n{content}"
+    
+    try:
+        # Use a smaller, cheaper model to summarize
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Change this to the lightweight model you're using
+            messages=[
+                {"role": "system", "content": "You are a summarization assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500,  # Set token limit for summarization
+            temperature=0.5
+        )
+        summary = response.choices[0].message.content
+        return summary.strip()  # Clean up whitespace
+
+    except Exception as e:
+        print(f"Error summarizing HTML: {str(e)}")
+        return ""
+
 stop_recursion = False
-def scrape_website_recursive(url, visited, max_depth=10, max_links_per_page=4):
+def scrape_website_recursive(url, visited, max_depth=20, max_links_per_page=4):
     global stop_recursion  
 
     if stop_recursion:
@@ -47,10 +83,18 @@ def scrape_website_recursive(url, visited, max_depth=10, max_links_per_page=4):
         soup = BeautifulSoup(response.content, 'html.parser')
 
         visited.add(url)
-        text = response.text
-        # text = ' '.join([p.get_text() for p in soup.find_all('p')])
+
+        core_content = extract_core_content_no_chunking(soup)
+        summarized_text = summarize_page(core_content)
+
+        # raw_html = response.text  # Get raw HTML
+
+        # # Summarize the HTML content using the new function
+        # summarized_text = summarize_html(raw_html)
+
 
         links_visited = 0
+        combined_summary = summarized_text
 
         for link in soup.find_all('a', href=True):
 
@@ -67,10 +111,11 @@ def scrape_website_recursive(url, visited, max_depth=10, max_links_per_page=4):
                     if not stop_recursion: 
                         links_visited += 1 
                         print(f"Adding {next_url} to the crawl queue.")
-                        time.sleep(0.5) 
-                        text += scrape_website_recursive(next_url, visited, max_depth - 1)
+                        time.sleep(0.25) 
+                        combined_summary += scrape_website_recursive(next_url, visited, max_depth - 1)
+
         # print(text)
-        return text
+        return combined_summary
 
     except requests.exceptions.RequestException as e:
         print(f"Failed to fetch {url}: {e}")
