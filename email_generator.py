@@ -50,13 +50,19 @@ def summarize_page(content):
         return ""
 
 stop_recursion = False
-def scrape_website_recursive(url, visited, max_depth=20, max_links_per_page=4):
+def scrape_website_recursive(url, visited, max_depth=20, max_links_per_page=3):
     global stop_recursion  
+
+    unwanted_keywords = ["webinar", "podcast", "blog"]
 
     if stop_recursion:
         return ""
 
     url = normalize_url(url)
+
+    if any(keyword in url for keyword in unwanted_keywords):
+        print(f"Skipping URL due to unwanted keyword: {url}")
+        return ""
 
     if url in visited:
         return ""
@@ -232,8 +238,27 @@ def regenerate_email(first_email, company_info, regeneration_comments):
     except Exception as e:
         return f"Error generating email: {str(e)}"
 
+def ask_openai(question, context=""):
+    """Function to query OpenAI GPT model"""
+    prompt = f"Answer the following question using the context provided: \n\nContext: {context}\n\nQuestion: {question}"
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",  
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=500
+        )
+        answer = response.choices[0].message.content
+        return answer.strip()
+    except Exception as e:
+        return f"Error querying OpenAI: {str(e)}"
+
 
 ######### GUI ###########
+
 
 st.title("Automated CEO Email Generator")
 
@@ -284,3 +309,32 @@ if st.session_state.email_generated:
             st.warning("Please generate an email first.")
 else:
     st.warning("Please generate an email before proceeding.")
+
+#### Chat bot section ########
+
+col1, col2 = st.columns([2, 3])
+
+with col1:
+    st.write("Ask the chatbot questions about the company or general questions:")
+
+    user_question = st.text_input("Enter your question here:")
+    
+    chat_context = st.radio(
+        "What context should the chatbot consider?",
+        ('Use company info', 'General question')
+    )
+    
+    if st.button("Ask Chatbot"):
+        if chat_context == 'Use company info' and "company_info" in st.session_state:
+            answer = ask_openai(user_question, context=st.session_state.get("company_info", ""))
+        else:
+            answer = ask_openai(user_question)
+        
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = ""
+        st.session_state.chat_history += f"**You:** {user_question}\n\n**Bot:** {answer}\n\n"
+    
+with col2:
+    st.write("Chat History:")
+    
+    st.text_area("Conversation", value=st.session_state.get("chat_history", ""), height=400, disabled=True)
