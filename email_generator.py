@@ -25,112 +25,51 @@ def normalize_url(url):
     return normalized.rstrip('/')  # Remove trailing slash
 
 stop_recursion = False
-def scrape_website_recursive(url, visited, max_depth=18, max_links_per_page=4):
-    global stop_recursion  # Use the global stop_recursion flag
+def scrape_website_recursive(url, visited, max_depth=10, max_links_per_page=4):
+    global stop_recursion  
 
-    # If stop_recursion is True, halt all recursion
     if stop_recursion:
         return ""
 
-    # Print the current URL and visited set for debugging
-    # print(f"Visiting: {url}")
-    #print(f"Visited so far: {visited}")
-
-    # Normalize the URL to prevent duplicate visits
     url = normalize_url(url)
 
-    # Stop if the URL has been visited or max depth is 0
     if url in visited:
-        # print(f"Skipping {url} - already visited.")
         return ""
 
     if max_depth == 0:
         print("Max depth reached. Stopping recursion.")
-        stop_recursion = True  # Set the global flag to stop further recursion
+        stop_recursion = True  
         return ""
 
     try:
-        # Fetch the content of the URL
         response = requests.get(url)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Mark the current URL as visited
         visited.add(url)
-
-        # Extract visible text from the page
-        text = ' '.join([p.get_text() for p in soup.find_all('p')])
+        text = response.text
+        # text = ' '.join([p.get_text() for p in soup.find_all('p')])
 
         links_visited = 0
 
-        # Recursively visit all internal links on the page
         for link in soup.find_all('a', href=True):
 
             if links_visited >= max_links_per_page:
                 print(f"Reached max links per page ({max_links_per_page}). Stopping further visits.")
-                break  # Stop visiting more links from this page
+                break  
 
-            next_url = urljoin(url, link['href'])  # Make absolute URL
-            next_url = normalize_url(next_url)  # Normalize the URL
+            next_url = urljoin(url, link['href'])  
+            next_url = normalize_url(next_url) 
 
             # Ensure the link is internal and not visited
             if urlparse(url).netloc == urlparse(next_url).netloc:
                 if next_url not in visited:
-                    if not stop_recursion:  # Only add if recursion is still allowed
+                    if not stop_recursion: 
                         links_visited += 1 
                         print(f"Adding {next_url} to the crawl queue.")
-                        time.sleep(1)  # Optional: Be polite to the server
+                        time.sleep(0.5) 
                         text += scrape_website_recursive(next_url, visited, max_depth - 1)
-                #     else:
-                #         print(f"Skipping {next_url} - recursion stopped.")
-                # else:
-                #     print(f"Skipping {next_url} - already visited.")
-        return text
-
-    except requests.exceptions.RequestException as e:
-        print(f"Failed to fetch {url}: {e}")
-        return ""
-    
-# def scrape_website_recursive(url, visited, max_depth=5):
-    # Print the current URL and visited set for debugging
-    
-
-    # Normalize the URL to prevent duplicate visits
-    url = normalize_url(url)
-
-    print(f"Visiting: {url}")
-    print(f"Visited so far: {visited}")
-
-    # Stop if the URL has been visited or the depth limit is reached
-    if url in visited or max_depth == 0:
-        # print(f"Skipping {url} - already visited or max depth reached.")
-        return ""
-
-    try:
-        # Fetch the content of the URL
-        response = requests.get(url)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        # Mark the current URL as visited
-        visited.add(url)
-
-        # Extract visible text from the page
-        text = ' '.join([p.get_text() for p in soup.find_all('p')])
-
-        # Recursively visit all internal links on the page
-        for link in soup.find_all('a', href=True):
-            next_url = urljoin(url, link['href'])  # Make absolute URL
-            next_url = normalize_url(next_url)  # Normalize the URL
-
-            # Ensure the link is internal and not visited
-            if urlparse(url).netloc == urlparse(next_url).netloc:
-                if next_url not in visited:
-                    print(f"Adding {next_url} to the crawl queue.")
-                    time.sleep(1)  # Optional: Be polite to the server
-                    text += scrape_website_recursive(next_url, visited, max_depth - 1)
-                # else:
-                #     print(f"Skipping {next_url} - already visited.")
+        # print(text)
         return text
 
     except requests.exceptions.RequestException as e:
@@ -138,19 +77,6 @@ def scrape_website_recursive(url, visited, max_depth=18, max_links_per_page=4):
         return ""
 
 
-
-    
-def scrape_website(url):
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Check for HTTP errors
-        soup = BeautifulSoup(response.content, 'html.parser')
-        # Extract all visible text from <p> tags (you can expand this logic as needed)
-        text = ' '.join([p.get_text() for p in soup.find_all('p')])
-        return text
-    except requests.exceptions.RequestException as e:
-        return f"Error scraping website: {str(e)}"
-    
 # Load previous edits from JSON file
 def load_edits_log():
     try:
@@ -175,20 +101,41 @@ def generate_refined_prompt(company_info):
 
     # Analyze common changes made by the user
     common_phrases = [entry["diff"] for entry in edits_log if entry["diff"]]
-    learning_summary = "\n".join(common_phrases[:5])  # Limit to the top 3 changes
+    learning_summary = "\n".join(common_phrases[:10]) 
 
     # Modify the prompt based on the learning summary
     return f"""
     Here is some information about the company: {company_info}
 
-    Based on previous feedback and edits, please emphasize:
+    You are also an AI email assistant that has been trained to adapt its writing style based on historical editing patterns. 
+    You have access to a collection of previous emails and their corresponding edits, which demonstrate my preferred writing style 
+    and content preferences.
+
+    I am providing you with a collection of previous email drafts and their edited versions. Each entry shows:
+    * The original email you generated
+    * My edited version
+    * The differences between your original email and the edited one
     {learning_summary}
+
+    Before drafting any new emails, please:
+    1. Analyze the differences between your original drafts and my edits
+    2. Note patterns in:
+        Tone adjustments (formal vs casual)
+        Common phrases I add or remove
+        Structural changes I make
+        Length preferences
+        Greeting and closing styles
+        Any specific vocabulary choices
+    
+    If you notice I consistently make certain types of edits (e.g., making things more concise, adding specific phrases), proactively 
+    incorporate these preferences
+    Maintain the core message while adapting the style to match my demonstrated preferences
+    If you're unsure about a particular aspect, default to the style most commonly seen in my edited versions
+
     """
 
 
-def generate_email(company_url):
-    visited_set = set()
-    company_info = scrape_website_recursive(company_url, visited_set)
+def generate_email(company_info):
     refined_prompt = generate_refined_prompt(company_info)
     prompt = f"""
     You are a B2B software investor at a large sized growth equity fund (JMI Equity) and writing an email to a company that you are interested in getting on a call with to learn more. 
@@ -239,10 +186,38 @@ def track_changes(original, edited):
     ))
     return "\n".join(diff)
 
-# # Log changes to a file
-# def log_edits(diff):
-#     with open("email_edits_log.txt", "a") as log_file:
-#         log_file.write(diff + "\n\n")
+def regenerate_email(first_email, company_info, regeneration_comments):
+    refined_prompt = generate_refined_prompt(company_info)
+    prompt = f"""
+    You are a B2B software investor at a large sized growth equity fund (JMI Equity) and writing an email to a company that you are interested in getting on a call with to learn more. 
+    In the email it is important to be personalized and show knowledge in the company and the market it operates in. 
+    Things to talk about include the market, the company. competitors, differentiators of the company, thesis you have in the space, tailwinds, etc. 
+    Be concise but still include all relevant information. 
+    
+    Here was the original email you generated: {first_email}
+    
+    Generate me a new email for this company with the following comments regarding the original email: {regeneration_comments}
+
+    {refined_prompt}
+    """
+
+    try:
+        # Use the Chat API instead of the old Completion API
+        response = client.chat.completions.create(
+            model="gpt-4o",  # or "gpt-4" if you have access
+            messages=[
+                {"role": "system", "content": "You are a professional email writer."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7
+        )
+        # Extract the email content from the response
+        return response.choices[0].message.content
+
+    except Exception as e:
+        return f"Error generating email: {str(e)}"
+
+
 
 
 # Streamlit UI
@@ -251,26 +226,57 @@ st.title("Automated CEO Email Generator")
 # Input field for company URL
 company_url = st.text_input("Enter Company Website URL")
 
+# Initialize session state variables only if they don't exist
 if "original_email" not in st.session_state:
     st.session_state.original_email = ""
+if "comments" not in st.session_state:
+    st.session_state.comments = ""
+if "email_generated" not in st.session_state:
+    st.session_state.email_generated = False  # To track whether email was generated
+if "company_info" not in st.session_state:
+    st.session_state.company_info = ""  # Store company info globally in session state
+if "visited_set" not in st.session_state:
+    st.session_state.visited_set = set()  # Track visited links for scraping
 
-# Button to generate the email
+# Button to scrape the website and generate the email
 if st.button("Generate Email"):
     st.write("Processing... please wait.")
-    st.session_state.original_email = generate_email(company_url)
 
-# Display the generated email in a text area for edits
-edited_email = st.text_area("Edit the Generated Email", st.session_state.original_email, height=300)
+    # Only scrape the website if company_info is not already stored
+    if not st.session_state.company_info:
+        st.session_state.company_info = scrape_website_recursive(company_url, st.session_state.visited_set)
 
-# Save edits and log them when the button is clicked
-if st.button("Save Edits"):
-    if edited_email and st.session_state.original_email:
-        diff = track_changes(st.session_state.original_email, edited_email)
-        if diff:
-            save_edits_log(st.session_state.original_email, edited_email, diff)
-            st.success("Edits saved and logged! Here are the changes:")
-            st.code(diff, language="diff")
+    # Generate the email using the stored company_info
+    st.session_state.original_email = generate_email(st.session_state.company_info)
+    st.session_state.email_generated = True  # Mark email as generated
+
+# Display the generated email in a text area for edits, only if the email was generated
+if st.session_state.email_generated:
+    edited_email = st.text_area("Edit the Generated Email", st.session_state.original_email, height=300)
+
+    # Text area to add comments for regenerating the email
+    comments_for_changes = st.text_area("Comments to Regenerate", st.session_state.comments, height=100)
+
+    # Button to regenerate the email based on comments
+    if st.button("Regenerate"):
+        if edited_email and comments_for_changes:
+            st.write("Processing... please wait.")
+            # Regenerate email using the existing company_info (no need to scrape again)
+            st.session_state.original_email = regenerate_email(edited_email, st.session_state.company_info, comments_for_changes)
         else:
-            st.info("No changes detected.")
-    else:
-        st.warning("Please generate an email first.")
+            st.warning("Please provide both comments and edits to regenerate the email.")
+
+    # Button to save edits and log them
+    if st.button("Save Edits"):
+        if edited_email and st.session_state.original_email:
+            diff = track_changes(st.session_state.original_email, edited_email)
+            if diff:
+                save_edits_log(st.session_state.original_email, edited_email, diff)
+                st.success("Edits saved and logged! Here are the changes:")
+                st.code(diff, language="diff")
+            else:
+                st.info("No changes detected.")
+        else:
+            st.warning("Please generate an email first.")
+else:
+    st.warning("Please generate an email before proceeding.")
